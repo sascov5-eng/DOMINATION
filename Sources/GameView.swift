@@ -5,11 +5,10 @@ struct GameRootView: View {
 
     var body: some View {
         ZStack {
-            Color(red: 0.07, green: 0.08, blue: 0.07).ignoresSafeArea()
+            Color(red: 0.07, green: 0.09, blue: 0.07).ignoresSafeArea()
             VStack(spacing: 0) {
                 header
-                HexBoard(game: game)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                HexBoard(game: game).frame(maxWidth: .infinity, maxHeight: .infinity)
                 footer
             }
             if game.showBrief { brief }
@@ -18,147 +17,137 @@ struct GameRootView: View {
 
     var brief: some View {
         ZStack {
-            Color.black.opacity(0.78).ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 14) {
-                Text("REID 01  ·  10 DNEY")
-                    .font(.system(size: 16, weight: .bold, design: .monospaced))
-                    .foregroundColor(Color(red: 0.86, green: 0.82, blue: 0.58))
-                Text("Tuman. Sosednyaya kletka — razvedka.\nKZ kazarma, FD kuhnya, WS master, RD radio.\nNa 6 den sday 5 kreditov.\nDo 10 dnya baza dolzhna stoyat.")
+            Color.black.opacity(0.8).ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 12) {
+                Text("РЕЙД 01")
+                    .font(.system(size: 18, weight: .bold, design: .monospaced))
+                    .foregroundColor(Color(red: 0.86, green: 0.82, blue: 0.56))
+                Text("10 дней. Разведай туман, строй базу, возьми точку встречной группы.\nПехота, разведка, техника, БПЛА — только светит.\nВраг бьёт, землю назад не берёт.\n6 день — сдать 5 кредитов.")
                     .font(.system(size: 13, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.88))
+                    .foregroundColor(.white.opacity(0.9))
                     .fixedSize(horizontal: false, vertical: true)
                 Button(action: { game.showBrief = false }) {
-                    Text("NACHAT")
+                    Text("НАЧАТЬ")
                         .font(.system(size: 15, weight: .bold, design: .monospaced))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color(red: 0.36, green: 0.28, blue: 0.14))
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
+                        .background(Color(red: 0.34, green: 0.28, blue: 0.14))
                         .foregroundColor(Color(red: 0.95, green: 0.88, blue: 0.62))
                 }
             }
             .padding(22)
-            .background(Color(red: 0.10, green: 0.11, blue: 0.10))
-            .padding(20)
+            .background(Color(red: 0.10, green: 0.12, blue: 0.10))
+            .padding(18)
         }
     }
 
     var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("OUTPOST 2026")
+                Text("АВАНПОСТ 2026")
                     .font(.system(size: 13, weight: .bold, design: .monospaced))
-                    .foregroundColor(Color(red: 0.82, green: 0.86, blue: 0.72))
+                    .foregroundColor(Color(red: 0.80, green: 0.86, blue: 0.68))
                 Spacer()
-                Text("DEN \(game.day)/10")
+                Text("День \(game.day)/10")
                     .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(.white.opacity(0.85))
             }
-            HStack(spacing: 8) {
-                res("LS", game.res.personnel, game.res.dPersonnel)
-                res("PAEK", game.res.rations, game.res.dRations)
-                res("MAT", game.res.materiel, game.res.dMateriel)
-                res("MOR", game.res.morale, game.res.dMorale)
-                res("CR", game.res.credits, game.res.dCredits)
+            HStack {
+                stat("ЛЮДИ", game.bag.people, game.bag.dPeople)
+                stat("ПАЁК", game.bag.food, game.bag.dFood)
+                stat("МАТ", game.bag.mats, game.bag.dMats)
+                stat("МОР", game.bag.morale, game.bag.dMorale)
+                stat("КР", game.bag.credits, game.bag.dCredits)
             }
-            Text(game.quotaDone ? "PLAN SDAN" : "PLAN \(game.quotaCredits) CR  ·  DEN \(game.quotaDay)")
+            Text(game.quotaDone ? "План сдан · возьми точку" : "План 5 КР · день 6")
                 .font(.system(size: 10, design: .monospaced))
-                .foregroundColor(Color(red: 0.72, green: 0.62, blue: 0.32))
+                .foregroundColor(Color(red: 0.74, green: 0.64, blue: 0.34))
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
+        .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 6)
     }
 
-    func res(_ name: String, _ v: Int, _ d: Int) -> some View {
+    func stat(_ n: String, _ v: Int, _ d: Int) -> some View {
         VStack(spacing: 1) {
-            Text(name)
-                .font(.system(size: 8, weight: .medium, design: .monospaced))
-                .foregroundColor(.white.opacity(0.45))
-            Text("\(v)")
-                .font(.system(size: 13, weight: .bold, design: .monospaced))
-                .foregroundColor(.white)
+            Text(n).font(.system(size: 8, design: .monospaced)).foregroundColor(.white.opacity(0.45))
+            Text("\(v)").font(.system(size: 13, weight: .bold, design: .monospaced)).foregroundColor(.white)
             Text(d >= 0 ? "+\(d)" : "\(d)")
                 .font(.system(size: 9, design: .monospaced))
-                .foregroundColor(d >= 0 ? Color(red: 0.55, green: 0.75, blue: 0.45) : Color(red: 0.86, green: 0.38, blue: 0.32))
-        }
-        .frame(maxWidth: .infinity)
+                .foregroundColor(d >= 0 ? Color(red: 0.55, green: 0.76, blue: 0.44) : Color(red: 0.86, green: 0.38, blue: 0.32))
+        }.frame(maxWidth: .infinity)
     }
 
     var footer: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(game.log)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundColor(.white.opacity(0.85))
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundColor(.white.opacity(0.9))
                 .lineLimit(2)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
             if let h = game.selected, let t = game.tile(h) {
-                Text(t.revealed ? "\(t.terrain.label)  \(t.building?.title ?? (t.buildDaysLeft > 0 ? "STROIKA" : "PUSTO"))" : "TUMAN")
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.5))
+                let u = game.troop(on: h)
+                Text(t.revealed ? "\(t.terrain.label)·\(t.building?.title ?? "пусто")·\(u?.kind.title ?? "")" : "Туман")
+                    .font(.system(size: 10, design: .monospaced)).foregroundColor(.white.opacity(0.5))
             }
-
             if game.ended {
                 Button(action: game.reset) {
-                    Text(game.won ? "ESHYO REID" : "ZANOVO")
-                        .font(.system(size: 14, weight: .bold, design: .monospaced))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color(red: 0.22, green: 0.28, blue: 0.18))
-                        .foregroundColor(.white)
+                    Text(game.won ? "Ещё раз" : "Заново")
+                        .font(.system(size: 15, weight: .bold, design: .monospaced))
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
+                        .background(Color(red: 0.20, green: 0.28, blue: 0.18)).foregroundColor(.white)
                 }
             } else {
-                HStack(spacing: 6) {
-                    ForEach([Building.barracks, .kitchen, .workshop, .radio], id: \.self) { b in
-                        Button(action: { game.startBuild(b) }) {
-                            Text(b.mark)
-                                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                                .background(Color.white.opacity(0.08))
-                                .foregroundColor(.white)
-                        }
-                    }
+                HStack(spacing: 5) {
+                    mini("КЗ") { game.startBuild(.barracks) }
+                    mini("КХ") { game.startBuild(.kitchen) }
+                    mini("МС") { game.startBuild(.workshop) }
+                    mini("РД") { game.startBuild(.radio) }
+                }
+                HStack(spacing: 5) {
+                    mini("Пех") { game.recruit(.infantry) }
+                    mini("Разв") { game.recruit(.scout) }
+                    mini("Тех") { game.recruit(.armor) }
+                    mini("БПЛА") { game.recruit(.drone) }
+                    mini("Свет") { game.droneSweep() }
                 }
                 Button(action: game.endDay) {
-                    Text("KONETS DNYA")
+                    Text("КОНЕЦ ДНЯ")
                         .font(.system(size: 14, weight: .bold, design: .monospaced))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
                         .background(Color(red: 0.36, green: 0.28, blue: 0.14))
                         .foregroundColor(Color(red: 0.95, green: 0.88, blue: 0.62))
                 }
             }
         }
-        .padding(14)
-        .background(Color.black.opacity(0.35))
+        .padding(12)
+        .background(Color.black.opacity(0.38))
+    }
+
+    func mini(_ t: String, _ a: @escaping () -> Void) -> some View {
+        Button(action: a) {
+            Text(t)
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .frame(maxWidth: .infinity).padding(.vertical, 9)
+                .background(Color.white.opacity(0.08)).foregroundColor(.white)
+        }
     }
 }
 
 struct HexBoard: View {
     @ObservedObject var game: OutpostGame
     @State private var drag: CGSize = .zero
-
     var body: some View {
         GeometryReader { geo in
-            let size = min(geo.size.width, geo.size.height)
-            let hexR = size / CGFloat(game.radius * 2 + 3) * 0.92
+            let hexR = min(geo.size.width, geo.size.height) / CGFloat(game.radius * 2 + 3) * 0.95
             ZStack {
                 ForEach(Array(game.tiles.keys), id: \.self) { h in
                     HexCell(game: game, hex: h, radius: hexR)
-                        .position(hexPoint(h, origin: CGPoint(x: geo.size.width / 2 + drag.width, y: geo.size.height / 2 + drag.height), r: hexR))
+                        .position(pt(h, CGPoint(x: geo.size.width/2 + drag.width, y: geo.size.height/2 + drag.height), hexR))
                         .onTapGesture { game.tap(h) }
                 }
             }
             .gesture(DragGesture().onChanged { drag = $0.translation }.onEnded { _ in })
-        }
-        .clipped()
+        }.clipped()
     }
-
-    func hexPoint(_ h: Hex, origin: CGPoint, r: CGFloat) -> CGPoint {
-        let x = CGFloat(h.q) * r * 1.75
-        let y = CGFloat(h.r) * r * 1.55 + CGFloat(h.q) * r * 0.78
-        return CGPoint(x: origin.x + x, y: origin.y + y)
+    func pt(_ h: Hex, _ o: CGPoint, _ r: CGFloat) -> CGPoint {
+        CGPoint(x: o.x + CGFloat(h.q) * r * 1.75, y: o.y + CGFloat(h.r) * r * 1.55 + CGFloat(h.q) * r * 0.78)
     }
 }
 
@@ -166,24 +155,29 @@ struct HexCell: View {
     @ObservedObject var game: OutpostGame
     let hex: Hex
     let radius: CGFloat
-
     var body: some View {
         let t = game.tile(hex)
-        let selected = game.selected == hex
+        let u = game.troop(on: hex)
         let fog = t?.revealed != true
+        let sel = game.selected == hex
         ZStack {
-            HexShape()
-                .fill(fog ? Color(red: 0.10, green: 0.12, blue: 0.11) : (t?.terrain.tint ?? .gray))
-            HexShape()
-                .stroke(selected ? Color(red: 0.92, green: 0.82, blue: 0.38) : Color.white.opacity(fog ? 0.08 : 0.18), lineWidth: selected ? 2 : 1)
-            if let b = t?.building, t?.revealed == true {
-                Text(b.mark)
-                    .font(.system(size: max(8, radius * 0.42), weight: .bold, design: .monospaced))
-                    .foregroundColor(.white)
-            } else if game.isExplorable(hex) {
-                Text("?")
-                    .font(.system(size:  max(9, radius * 0.4), weight: .bold, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.35))
+            HexShape().fill(fog ? Color(red: 0.10, green: 0.12, blue: 0.10) : (t?.terrain.tint ?? .gray))
+            HexShape().stroke(
+                t?.isPoint == true && t?.revealed == true ? Color(red: 0.78, green: 0.32, blue: 0.22) :
+                (sel ? Color(red: 0.92, green: 0.82, blue: 0.38) : Color.white.opacity(fog ? 0.08 : 0.16)),
+                lineWidth: sel || t?.isPoint == true ? 2 : 1
+            )
+            VStack(spacing: 0) {
+                if let b = t?.building, t?.revealed == true {
+                    Text(b.mark).font(.system(size: max(7, radius * 0.28), weight: .bold, design: .monospaced)).foregroundColor(.white.opacity(0.7))
+                }
+                if let u, t?.revealed == true {
+                    Text(u.kind.mark)
+                        .font(.system(size: max(9, radius * 0.42), weight: .bold, design: .monospaced))
+                        .foregroundColor(u.side == 1 ? Color(red: 0.78, green: 0.88, blue: 0.55) : Color(red: 0.90, green: 0.42, blue: 0.32))
+                } else if game.isExplorable(hex) {
+                    Text("?").font(.system(size: max(9, radius * 0.36), weight: .bold, design: .monospaced)).foregroundColor(.white.opacity(0.3))
+                }
             }
         }
         .frame(width: radius * 1.7, height: radius * 1.9)
