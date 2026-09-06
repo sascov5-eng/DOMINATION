@@ -290,7 +290,6 @@ final class OutpostGame: ObservableObject {
 
     func tryOrder(_ me: Troop, to dest: Hex) -> Bool {
         let adj = me.hex.neighbors().contains(dest)
-        let reach = me.kind == .scout ? me.hex.distance(to: dest) == 1 || me.hex.neighbors().contains(where: { $0.neighbors().contains(dest) && $0.distance(to: dest) == 1 && dest.distance(to: me.hex) == 2 }) : adj
         let near = adj || (me.kind == .scout && me.hex.distance(to: dest) <= 2 && tiles.keys.contains(dest))
         guard near else { return false }
         guard var land = tiles[dest] else { return false }
@@ -325,8 +324,9 @@ final class OutpostGame: ObservableObject {
 
     func hit(attacker: Troop, defender: Troop) {
         guard let di = troops.firstIndex(where: { $0.id == defender.id }) else { return }
-        troops[di].hp -= attacker.atk
-        log = "\(attacker.kind.title) бьёт \(defender.kind.title): −\(attacker.atk)"
+        let dmg = attacker.kind.atk
+        troops[di].hp -= dmg
+        log = "\(attacker.kind.title) бьёт \(defender.kind.title): -\(dmg)"
         if troops[di].hp <= 0 {
             let deadHex = troops[di].hex
             troops.remove(at: di)
@@ -349,7 +349,6 @@ final class OutpostGame: ObservableObject {
     func canBuild(_ b: Building, on h: Hex) -> Bool {
         guard let t = tiles[h], t.revealed, t.building == nil, t.buildingDays == 0, t.owner == 1 else { return false }
         if t.terrain == .river { return false }
-        if troop(on: h) != nil && b != .hq { return true }
         return bag.people >= b.people && bag.mats >= b.mats
     }
 
@@ -444,11 +443,6 @@ final class OutpostGame: ObservableObject {
     }
 
     func checkWinLose() {
-        if tiles[hq]?.owner != 1 || troop(on: hq)?.side == 2 {
-            if tiles[hq]?.building != .hq { }
-        }
-        if !troops.contains(where: { $0.side == 1 && $0.kind != .drone }) && tiles[hq]?.building == .hq {
-        }
         if tiles[point]?.owner == 1 && quotaDone && day <= lastDay && !ended {
             ended = true
             won = true
