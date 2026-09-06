@@ -12,6 +12,33 @@ struct GameRootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 footer
             }
+            if game.showBrief { brief }
+        }
+    }
+
+    var brief: some View {
+        ZStack {
+            Color.black.opacity(0.78).ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 14) {
+                Text("REID 01  ·  10 DNEY")
+                    .font(.system(size: 16, weight: .bold, design: .monospaced))
+                    .foregroundColor(Color(red: 0.86, green: 0.82, blue: 0.58))
+                Text("Tuman. Sosednyaya kletka — razvedka.\nKZ kazarma, FD kuhnya, WS master, RD radio.\nNa 6 den sday 5 kreditov.\nDo 10 dnya baza dolzhna stoyat.")
+                    .font(.system(size: 13, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.88))
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(action: { game.showBrief = false }) {
+                    Text("NACHAT")
+                        .font(.system(size: 15, weight: .bold, design: .monospaced))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color(red: 0.36, green: 0.28, blue: 0.14))
+                        .foregroundColor(Color(red: 0.95, green: 0.88, blue: 0.62))
+                }
+            }
+            .padding(22)
+            .background(Color(red: 0.10, green: 0.11, blue: 0.10))
+            .padding(20)
         }
     }
 
@@ -22,7 +49,7 @@ struct GameRootView: View {
                     .font(.system(size: 13, weight: .bold, design: .monospaced))
                     .foregroundColor(Color(red: 0.82, green: 0.86, blue: 0.72))
                 Spacer()
-                Text("DEN \(game.day)")
+                Text("DEN \(game.day)/10")
                     .font(.system(size: 12, weight: .semibold, design: .monospaced))
                     .foregroundColor(.white.opacity(0.8))
             }
@@ -33,7 +60,7 @@ struct GameRootView: View {
                 res("MOR", game.res.morale, game.res.dMorale)
                 res("CR", game.res.credits, game.res.dCredits)
             }
-            Text("PLAN \(game.quotaCredits) CR / DEN \(game.quotaDay)")
+            Text(game.quotaDone ? "PLAN SDAN" : "PLAN \(game.quotaCredits) CR  ·  DEN \(game.quotaDay)")
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundColor(Color(red: 0.72, green: 0.62, blue: 0.32))
         }
@@ -66,7 +93,7 @@ struct GameRootView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if let h = game.selected, let t = game.tile(h) {
-                Text(t.revealed ? "\(t.terrain.label)  \(t.building?.title ?? (t.buildDaysLeft > 0 ? "STROIKA \(t.buildDaysLeft)" : "PUSTO"))" : "TUMAN")
+                Text(t.revealed ? "\(t.terrain.label)  \(t.building?.title ?? (t.buildDaysLeft > 0 ? "STROIKA" : "PUSTO"))" : "TUMAN")
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundColor(.white.opacity(0.5))
             }
@@ -155,7 +182,7 @@ struct HexCell: View {
                     .foregroundColor(.white)
             } else if game.isExplorable(hex) {
                 Text("?")
-                    .font(.system(size: max(9, radius * 0.4), weight: .bold, design: .monospaced))
+                    .font(.system(size:  max(9, radius * 0.4), weight: .bold, design: .monospaced))
                     .foregroundColor(.white.opacity(0.35))
             }
         }

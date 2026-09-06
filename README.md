@@ -1,12 +1,8 @@
 # DOMINATION — Outpost 2026
 
-Turn-based hex outpost builder for iPhone. Same skeleton as TownsFolk (explore fog, spend a day, balance five resources, meet a supply quota) in a generic 2026 military setting. No countries, flags, or politics.
+**Global rule:** not a full game. One 15-20 minute scenario to evaluate the loop. Polish the slice, nothing else.
 
-## Play
-- Tap a fog hex next to revealed land to scout it (costs 1 personnel).
-- Tap a revealed empty hex to build.
-- End Day applies income and quota pressure.
+Scenario: 10 days. Scout fog. Build kitchen / barracks / workshop / radio. Meet one supply quota on day 6. Hold until day 10.
 
-## Build IPA
-Push to `main` or run **Build Outpost IPA**. Artifact: `Outpost-unsigned.ipa`.
-Sign it yourself (AltStore / your cert). This repo never signs.
+## IPA
+Push `main` → Actions → `Outpost-unsigned.ipa`. Sign yourself.

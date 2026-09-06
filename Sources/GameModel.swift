@@ -18,7 +18,7 @@ struct Hex: Hashable {
     }
 }
 
-enum Terrain: String, CaseIterable {
+enum Terrain: String {
     case plain, forest, river, ruin, waste
 
     var label: String {
@@ -99,7 +99,7 @@ struct Resources {
     var rations = 8
     var materiel = 10
     var morale = 4
-    var credits = 5
+    var credits = 3
     var dPersonnel = 0
     var dRations = 0
     var dMateriel = 0
@@ -111,17 +111,20 @@ final class OutpostGame: ObservableObject {
     @Published var tiles: [Hex: Tile] = [:]
     @Published var res = Resources()
     @Published var day = 1
-    @Published var quotaDay = 8
-    @Published var quotaCredits = 6
+    @Published var quotaDay = 6
+    @Published var quotaCredits = 5
+    @Published var quotaDone = false
     @Published var deficitDays = 0
     @Published var selected: Hex?
-    @Published var log = "RAZVEDKA. POSTROI BAZU. DERZHI PLAN."
+    @Published var log = ""
     @Published var ended = false
     @Published var won = false
-    @Published var pendingBuild: Building?
+    @Published var showBrief = true
+    @Published var explored = 0
 
-    let radius = 4
+    let radius = 3
     let hq = Hex(q: 0, r: 0)
+    let lastDay = 10
 
     init() { reset() }
 
@@ -147,14 +150,16 @@ final class OutpostGame: ObservableObject {
         tiles = map
         res = Resources()
         day = 1
-        quotaDay = 8
-        quotaCredits = 6
+        quotaDay = 6
+        quotaCredits = 5
+        quotaDone = false
         deficitDays = 0
         selected = hq
-        pendingBuild = nil
         ended = false
         won = false
-        log = "DEN 1. SHTAB STOIT. TUMAN VOKRUG."
+        showBrief = true
+        explored = 0
+        log = "10 DNEY. RAZVEDKA, BAZA, PLAN NA 6 DEN."
         recalcIncome()
     }
 
@@ -166,15 +171,9 @@ final class OutpostGame: ObservableObject {
     }
 
     func tap(_ h: Hex) {
-        guard !ended, tiles[h] != nil else { return }
+        guard !ended, !showBrief, tiles[h] != nil else { return }
         selected = h
-        if isExplorable(h) {
-            explore(h)
-            return
-        }
-        if let t = tiles[h], t.revealed, t.building == nil, t.buildDaysLeft == 0 {
-            pendingBuild = pendingBuild ?? .barracks
-        }
+        if isExplorable(h) { explore(h) }
     }
 
     func explore(_ h: Hex) {
@@ -185,13 +184,14 @@ final class OutpostGame: ObservableObject {
         res.personnel -= 1
         t.revealed = true
         tiles[h] = t
+        explored += 1
         var bonus = ""
         if t.terrain == .ruin {
             res.credits += 2
-            bonus = " NAIDENY ZAPASY +2 CR."
+            bonus = " +2 CR"
         } else if t.terrain == .forest {
             res.materiel += 1
-            bonus = " LES +1 MAT."
+            bonus = " +1 MAT"
         }
         log = "RAZVEDANO: \(t.terrain.label).\(bonus)"
         recalcIncome()
@@ -205,21 +205,20 @@ final class OutpostGame: ObservableObject {
 
     func startBuild(_ b: Building) {
         guard let h = selected, canBuild(b, on: h), var t = tiles[h] else {
-            log = "NELZYA POSTROIT."
+            log = "VYBERI PUSTUYU KLETKU I ZHMI KZ / FD / WS / RD."
             return
         }
         res.personnel -= b.personnelCost
         res.materiel -= b.materialCost
-        t.buildDaysLeft = 2
+        t.buildDaysLeft = 1
         t.building = b
         tiles[h] = t
-        pendingBuild = nil
-        log = "STROIKA \(b.title). 2 DNYA."
+        log = "STROIKA \(b.title). ZAVTRA GOTOVO."
         recalcIncome()
     }
 
     func endDay() {
-        guard !ended else { return }
+        guard !ended, !showBrief else { return }
         for (h, var t) in tiles where t.buildDaysLeft > 0 {
             t.buildDaysLeft -= 1
             if t.buildDaysLeft == 0 { log = "GOTOVO: \(t.building?.title ?? "?")" }
@@ -227,49 +226,43 @@ final class OutpostGame: ObservableObject {
         }
         recalcIncome()
         res.personnel = max(0, res.personnel + res.dPersonnel)
-        res.rations = res.rations + res.dRations
+        res.rations += res.dRations
         res.materiel = max(0, res.materiel + res.dMateriel)
         res.morale = max(0, res.morale + res.dMorale)
         res.credits = max(0, res.credits + res.dCredits)
 
         if res.rations < 0 || res.personnel <= 0 {
             deficitDays += 1
-            log = "DEFICIT. DNEI DO SRYVA: \(7 - deficitDays)."
-            if deficitDays >= 7 {
+            log = "DEFICIT. ESHE \(3 - deficitDays) DNYA."
+            if deficitDays >= 3 {
                 ended = true
-                log = "BAZA RASSYPALAS. SRYV."
+                log = "SRYV. PAEK / LYUDI KONCHILIS."
                 return
             }
         } else {
             deficitDays = 0
         }
 
-        if day >= quotaDay {
+        if day == quotaDay {
             if res.credits >= quotaCredits {
                 res.credits -= quotaCredits
-                quotaDay += 7
-                quotaCredits += 3
-                log = "PLAN SDAN. SLEDUYUSHCHIY CHEREZ 7 DNEY."
+                quotaDone = true
+                log = "PLAN SDAN. DERZHI BAZU DO DNYA 10."
             } else {
                 ended = true
-                log = "PLAN NE SDAN. KOMANDovanie OTOZVALO BAZU."
+                log = "PLAN NA DEN 6 NE SDAN."
                 return
             }
         }
 
-        if day >= 21 && deficitDays == 0 {
+        if day >= lastDay {
             ended = true
-            won = true
-            log = "21 DEN. BAZA UDERZHANA."
+            won = quotaDone && deficitDays == 0
+            log = won ? "REID ZAKRYT. BAZA STOIT." : "10 DNEY PROSHLI, NO BAZA SLABA."
             return
         }
 
         day += 1
-        if Int.random(in: 0...8) == 0 {
-            let hit = Int.random(in: 1...2)
-            res.materiel = max(0, res.materiel - hit)
-            log = "SBOI TEHNIKI. -\(hit) MAT."
-        }
         recalcIncome()
     }
 
@@ -277,18 +270,12 @@ final class OutpostGame: ObservableObject {
         var p = 0, f = -1, m = 0, mo = 0, c = 0
         for t in tiles.values where t.revealed && t.buildDaysLeft == 0 {
             switch t.building {
-            case .hq:
-                p += 1; m += 1
-            case .barracks:
-                p += 2; f -= 1
-            case .kitchen:
-                f += 3
-            case .workshop:
-                m += 2
-            case .radio:
-                mo += 1; c += 1
-            default:
-                break
+            case .hq: p += 1; m += 1
+            case .barracks: p += 2; f -= 1
+            case .kitchen: f += 3
+            case .workshop: m += 2
+            case .radio: mo += 1; c += 1
+            default: break
             }
             if t.terrain == .forest, t.building == .workshop { m += 1 }
             if t.terrain == .plain, t.building == .kitchen { f += 1 }
