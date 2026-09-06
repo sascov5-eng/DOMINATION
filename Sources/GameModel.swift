@@ -74,6 +74,15 @@ enum Building {
         case .radio: return 3
         }
     }
+    var growth: String {
+        switch self {
+        case .hq: return "+1 чел +1 мат"
+        case .barracks: return "+2 чел −1 паёк"
+        case .kitchen: return "+3 паёк"
+        case .workshop: return "+2 мат"
+        case .radio: return "+1 мор +1 кр"
+        }
+    }
 }
 
 enum Force: String {
@@ -133,6 +142,10 @@ enum Force: String {
     }
 }
 
+enum Panel {
+    case none, explore, tile, build, recruit, event, plan
+}
+
 struct Tile {
     var hex: Hex
     var terrain: Terrain
@@ -178,7 +191,11 @@ final class OutpostGame: ObservableObject {
     @Published var ended = false
     @Published var won = false
     @Published var showBrief = true
-    @Published var mode = "build"
+    @Published var panel: Panel = .none
+    @Published var hqHp = 6
+    @Published var buildPick = 0
+    @Published var recruitPick = 0
+    @Published var eventDay = 0
 
     let radius = 3
     let hq = Hex(q: 0, r: 0)
@@ -186,9 +203,18 @@ final class OutpostGame: ObservableObject {
     let lastDay = 10
     let quotaDay = 6
     let quotaNeed = 5
+    let hqMax = 6
+    let buildList: [Building] = [.barracks, .kitchen, .workshop, .radio]
+    let forceList: [Force] = [.infantry, .scout, .armor, .drone]
     private var nextId = 1
 
     init() { reset() }
+
+    var idleDrone: Troop? {
+        troops.first { $0.side == 1 && $0.kind == .drone && !$0.acted }
+    }
+
+    var myTroopCount: Int { troops.filter { $0.side == 1 }.count }
 
     func reset() {
         var map: [Hex: Tile] = [:]
@@ -223,7 +249,11 @@ final class OutpostGame: ObservableObject {
         ended = false
         won = false
         showBrief = true
-        mode = "build"
+        panel = .none
+        hqHp = hqMax
+        buildPick = 0
+        recruitPick = 0
+        eventDay = 0
         log = "Разведай. Строй. Возьми точку."
         tickIncome()
     }
@@ -237,26 +267,70 @@ final class OutpostGame: ObservableObject {
     func tile(_ h: Hex) -> Tile? { tiles[h] }
     func troop(on h: Hex) -> Troop? { troops.first { $0.hex == h } }
     func myTroop(_ id: Int) -> Troop? { troops.first { $0.id == id && $0.side == 1 } }
+    func hasBuilding(_ b: Building) -> Bool { tiles.values.contains { $0.building == b } }
 
     func isExplorable(_ h: Hex) -> Bool {
         guard let t = tiles[h], !t.revealed else { return false }
         return h.neighbors().contains { tiles[$0]?.revealed == true }
     }
 
+    func isReachable(_ h: Hex) -> Bool {
+        guard let pid = pickedTroop, let me = myTroop(pid), !me.acted else { return false }
+        let d = me.hex.distance(to: h)
+        if d == 1 { return true }
+        if d == 2 && (me.kind == .scout || me.kind == .drone) { return true }
+        return false
+    }
+
+    func closePanel() { if panel != .event { panel = .none } }
+
     func tap(_ h: Hex) {
-        guard !ended, !showBrief, tiles[h] != nil else { return }
+        guard !ended, !showBrief, panel != .event, tiles[h] != nil else { return }
         selected = h
         if let pid = pickedTroop, let me = myTroop(pid), !me.acted {
-            if me.hex == h { pickedTroop = nil; return }
-            if tryOrder(me, to: h) { return }
+            if me.hex == h {
+                pickedTroop = nil
+                panel = .none
+                return
+            }
+            if tryOrder(me, to: h) {
+                panel = .none
+                return
+            }
         }
         if let u = troop(on: h), u.side == 1 {
             pickedTroop = u.id
+            panel = .none
             log = "\(u.kind.title), HP \(u.hp). Ход или удар по соседу."
             return
         }
         pickedTroop = nil
-        if isExplorable(h) { explore(h, drone: false) }
+        if isExplorable(h) {
+            panel = .explore
+            return
+        }
+        if let t = tiles[h], t.revealed, t.owner == 1, t.terrain != .river {
+            panel = .tile
+            return
+        }
+        panel = .none
+    }
+
+    func confirmExplore() {
+        guard let h = selected else { return }
+        explore(h, drone: false)
+        panel = .none
+    }
+
+    func confirmDroneExplore() {
+        guard let h = selected, let d = idleDrone else {
+            log = "Нужен БПЛА без хода."
+            return
+        }
+        guard isExplorable(h) || tiles[h]?.revealed == false else { return }
+        explore(h, drone: true)
+        if let i = troops.firstIndex(where: { $0.id == d.id }) { troops[i].acted = true }
+        panel = .none
     }
 
     func explore(_ h: Hex, drone: Bool) {
@@ -275,26 +349,17 @@ final class OutpostGame: ObservableObject {
         tickIncome()
     }
 
-    func droneSweep() {
-        guard let h = selected, let d = troops.first(where: { $0.side == 1 && $0.kind == .drone && !$0.acted }) else {
-            log = "Нужен БПЛА без хода."
-            return
-        }
-        guard isExplorable(h) || (tiles[h]?.revealed == false) else {
-            log = "Выбери туман."
-            return
-        }
-        explore(h, drone: true)
-        if let i = troops.firstIndex(where: { $0.id == d.id }) { troops[i].acted = true }
-    }
-
     func tryOrder(_ me: Troop, to dest: Hex) -> Bool {
         let adj = me.hex.neighbors().contains(dest)
-        let near = adj || (me.kind == .scout && me.hex.distance(to: dest) <= 2 && tiles.keys.contains(dest))
+        let near = adj || ((me.kind == .scout || me.kind == .drone) && me.hex.distance(to: dest) <= 2 && tiles.keys.contains(dest))
         guard near else { return false }
         guard var land = tiles[dest] else { return false }
         if !land.revealed {
-            if me.kind == .drone || me.kind == .scout { explore(dest, drone: true); markActed(me.id); return true }
+            if me.kind == .drone || me.kind == .scout {
+                explore(dest, drone: true)
+                markActed(me.id)
+                return true
+            }
             return false
         }
         if let foe = troop(on: dest), foe.side != 1 {
@@ -306,7 +371,7 @@ final class OutpostGame: ObservableObject {
         }
         if troop(on: dest) != nil { log = "Клетка занята."; return true }
         if !me.kind.canEnter(land.terrain) { log = "Сюда не пройти."; return true }
-        if !adj && !(me.kind == .scout && me.hex.distance(to: dest) == 2) { return false }
+        if !adj && !((me.kind == .scout || me.kind == .drone) && me.hex.distance(to: dest) == 2) { return false }
         if let i = troops.firstIndex(where: { $0.id == me.id }) {
             troops[i].hex = dest
             troops[i].acted = true
@@ -314,11 +379,11 @@ final class OutpostGame: ObservableObject {
         if land.owner != 1 {
             land.owner = 1
             tiles[dest] = land
-            if land.isPoint { log = "Точка взята." } else { log = "Клетка наша." }
+            log = land.isPoint ? "Точка взята. Держи до дня 10." : "Клетка наша."
         } else {
             log = "\(me.kind.title) перешла."
         }
-        checkWinLose()
+        checkHq()
         return true
     }
 
@@ -333,12 +398,12 @@ final class OutpostGame: ObservableObject {
             if defender.side == 2, var t = tiles[deadHex] {
                 t.owner = 1
                 tiles[deadHex] = t
-                log = "Отряд снят. Клетка наша."
+                log = t.isPoint ? "Точка взята. Держи до дня 10." : "Отряд снят. Клетка наша."
             } else {
                 log = "Наш отряд сбит."
             }
         }
-        checkWinLose()
+        checkHq()
     }
 
     func markActed(_ id: Int) {
@@ -346,15 +411,24 @@ final class OutpostGame: ObservableObject {
         pickedTroop = nil
     }
 
+    func buildBlock(_ b: Building) -> String? {
+        guard let h = selected, let t = tiles[h] else { return "Выбери клетку." }
+        if !t.revealed || t.owner != 1 { return "Только своя клетка." }
+        if t.terrain == .river { return "На реку нельзя." }
+        if t.building != nil { return "Здесь уже стоит здание." }
+        if hasBuilding(b) { return "Уже стоит." }
+        if bag.people < b.people || bag.mats < b.mats { return "Не хватает ресурсов." }
+        return nil
+    }
+
     func canBuild(_ b: Building, on h: Hex) -> Bool {
-        guard let t = tiles[h], t.revealed, t.building == nil, t.buildingDays == 0, t.owner == 1 else { return false }
-        if t.terrain == .river { return false }
-        return bag.people >= b.people && bag.mats >= b.mats
+        selected = h
+        return buildBlock(b) == nil
     }
 
     func startBuild(_ b: Building) {
-        guard let h = selected, canBuild(b, on: h), var t = tiles[h] else {
-            log = "Выбери свою пустую клетку."
+        guard let h = selected, buildBlock(b) == nil, var t = tiles[h] else {
+            log = buildBlock(b) ?? "Выбери свою пустую клетку."
             return
         }
         bag.people -= b.people
@@ -363,32 +437,43 @@ final class OutpostGame: ObservableObject {
         t.buildingDays = 1
         tiles[h] = t
         log = "\(b.title): готово завтра."
+        panel = .none
         tickIncome()
     }
 
-    func recruit(_ k: Force) {
-        guard let h = selected, let t = tiles[h], t.owner == 1, t.revealed else {
-            log = "Выбери свою клетку."
-            return
-        }
-        guard troop(on: h) == nil else { log = "Здесь уже стоит отряд."; return }
+    func recruitBlock(_ k: Force) -> String? {
+        guard let h = selected, let t = tiles[h] else { return "Выбери клетку." }
+        if t.owner != 1 || !t.revealed { return "Выбери свою клетку." }
+        if troop(on: h) != nil { return "Здесь уже стоит отряд." }
+        if myTroopCount >= 4 { return "Уже 4 отряда." }
         let needBarracks = k == .infantry || k == .scout
         let needShop = k == .armor || k == .drone
         let hasB = tiles.values.contains { $0.building == .barracks && $0.buildingDays == 0 }
         let hasW = tiles.values.contains { $0.building == .workshop && $0.buildingDays == 0 }
-        if needBarracks && !hasB { log = "Нужна казарма."; return }
-        if needShop && !hasW { log = "Нужна мастерская."; return }
-        guard bag.people >= k.peopleCost, bag.mats >= k.matCost else { log = "Не хватает ресурсов."; return }
-        guard k.canEnter(t.terrain) else { log = "Сюда этот отряд не встает."; return }
+        if needBarracks && !hasB { return "Нужна казарма." }
+        if needShop && !hasW { return "Нужна мастерская." }
+        if bag.people < k.peopleCost || bag.mats < k.matCost { return "Не хватает ресурсов." }
+        if !k.canEnter(t.terrain) { return "Сюда этот отряд не встает." }
+        return nil
+    }
+
+    func recruit(_ k: Force) {
+        guard let h = selected, recruitBlock(k) == nil else {
+            log = recruitBlock(k) ?? "Выбери свою клетку."
+            return
+        }
         bag.people -= k.peopleCost
         bag.mats -= k.matCost
         troops.append(spawn(1, k, h))
         log = "\(k.title) в строю."
+        panel = .none
         tickIncome()
     }
 
     func endDay() {
-        guard !ended, !showBrief else { return }
+        guard !ended, !showBrief, panel != .event else { return }
+        panel = .none
+        pickedTroop = nil
         for (h, var t) in tiles where t.buildingDays > 0 {
             t.buildingDays -= 1
             tiles[h] = t
@@ -402,6 +487,7 @@ final class OutpostGame: ObservableObject {
         bag.credits = max(0, bag.credits + bag.dCredits)
 
         enemyAct()
+        if ended { return }
 
         if bag.food < 0 || bag.people <= 0 {
             deficit += 1
@@ -417,42 +503,86 @@ final class OutpostGame: ObservableObject {
             } else { fail("План на 6 день не сдан."); return }
         }
 
+        if day == 3 || day == 8 {
+            eventDay = day
+            panel = .event
+            return
+        }
+        finishDay()
+    }
+
+    func eventChoiceEnabled(_ i: Int) -> Bool {
+        if eventDay == 3 {
+            if i == 0 { return bag.people >= 2 }
+            if i == 2 { return bag.mats >= 2 }
+            return true
+        }
+        if eventDay == 8 {
+            if i == 0 { return bag.people >= 1 }
+            if i == 2 { return bag.mats >= 2 }
+            return true
+        }
+        return false
+    }
+
+    func pickEvent(_ i: Int) {
+        guard panel == .event, eventChoiceEnabled(i) else { return }
+        if eventDay == 3 {
+            if i == 0 { bag.people -= 2; bag.morale += 1; log = "Смена тянет эфир." }
+            if i == 1 { bag.morale = max(0, bag.morale - 1); log = "Ждём утро." }
+            if i == 2 { bag.mats -= 2; bag.credits += 1; log = "Топливо ушло в эфир." }
+        } else if eventDay == 8 {
+            if i == 0 { bag.people -= 1; log = "Люди в укрытии." }
+            if i == 1 { strikeHQ(2); if ended { panel = .none; eventDay = 0; return } }
+            if i == 2 { bag.mats -= 2; log = "Ответили огнём." }
+        }
+        panel = .none
+        eventDay = 0
+        tickIncome()
+        finishDay()
+    }
+
+    func finishDay() {
         if day >= lastDay {
-            let hold = tiles[hq]?.owner == 1 && tiles[point]?.owner == 1 && quotaDone
+            let hold = tiles[hq]?.owner == 1 && hqHp > 0 && tiles[point]?.owner == 1 && quotaDone
             ended = true
             won = hold
             log = won ? "Рейд закрыт. Точка наша." : "10 дней. Цель не взята."
             return
         }
-
         day += 1
         for i in troops.indices { troops[i].acted = false }
         pickedTroop = nil
         tickIncome()
-        checkWinLose()
     }
 
     func enemyAct() {
         let foes = troops.filter { $0.side == 2 }
         for foe in foes {
+            if ended { return }
             let victims = foe.hex.neighbors().compactMap { troop(on: $0) }.filter { $0.side == 1 && $0.kind != .drone }
             if let v = victims.first {
                 hit(attacker: foe, defender: v)
+            } else if foe.hex.neighbors().contains(hq), troop(on: hq) == nil {
+                strikeHQ(2)
             }
         }
     }
 
-    func checkWinLose() {
-        if tiles[point]?.owner == 1 && quotaDone && day <= lastDay && !ended {
-            ended = true
-            won = true
-            log = "Точка взята. Рейд закрыт."
-        }
+    func strikeHQ(_ dmg: Int) {
+        hqHp = max(0, hqHp - dmg)
+        log = "Удар по штабу: −\(dmg). Осталось \(hqHp)."
+        checkHq()
+    }
+
+    func checkHq() {
+        if hqHp <= 0 || tiles[hq]?.owner != 1 { fail("Штаб упал.") }
     }
 
     func fail(_ m: String) {
         ended = true
         won = false
+        panel = .none
         log = m
     }
 
@@ -471,6 +601,11 @@ final class OutpostGame: ObservableObject {
             if t.terrain == .plain, t.building == .kitchen { f += 1 }
         }
         f -= max(0, (bag.people + p) / 5)
+        if bag.morale == 0 {
+            p = p / 2
+            m = m / 2
+            c = c / 2
+        }
         bag.dPeople = p; bag.dFood = f; bag.dMats = m; bag.dMorale = mo; bag.dCredits = c
     }
 }
